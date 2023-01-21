@@ -42,7 +42,12 @@ async fn run_impl(
         options.state.vaults.default()?.config
     };
     let vault = vault_config.get().await?;
-    let identity = Identity::create(&ctx, &vault).await?;
+    let identity = Identity::create_ext(
+        &ctx,
+        &options.state.identities.authenticated_storage().await?,
+        &vault,
+    )
+    .await?;
     let identity_config = cli_state::IdentityConfig::new(&identity).await;
     options
         .state

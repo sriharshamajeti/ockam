@@ -77,7 +77,14 @@ async fn run_impl(ctx: Context, (opts, cmd): (CommandGlobalOpts, VaultCommand)) 
                     SecretAttributes::new(SecretType::NistP256, SecretPersistence::Persistent, 32);
                 let kid = v.secret_import(Secret::Aws(key_id), attrs).await?;
                 let attrs = KeyAttributes::new(IdentityStateConst::ROOT_LABEL.to_string(), attrs);
-                Identity::create_ext(&ctx, &v, &kid, attrs).await?
+                Identity::create_with_external_key_ext(
+                    &ctx,
+                    &opts.state.identities.authenticated_storage().await?,
+                    &v,
+                    &kid,
+                    attrs,
+                )
+                .await?
             };
             let idt_name = cli_state::random_name();
             let idt_config = cli_state::IdentityConfig::new(&idt).await;

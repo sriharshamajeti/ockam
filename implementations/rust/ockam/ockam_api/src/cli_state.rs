@@ -1,6 +1,6 @@
 use crate::nodes::models::transport::{CreateTransportJson, TransportMode, TransportType};
 use ockam_identity::change_history::{IdentityChangeHistory, IdentityHistoryComparison};
-use ockam_identity::{Identity, IdentityIdentifier};
+use ockam_identity::{Identity, IdentityIdentifier, SecureChannelRegistry};
 use ockam_vault::{storage::FileStorage, Vault};
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use time::format_description::well_known::Iso8601;
 use time::OffsetDateTime;
 
+use crate::lmdb::LmdbStorage;
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, CliStateError>;
@@ -350,6 +351,10 @@ impl IdentitiesState {
         std::os::unix::fs::symlink(original, link)?;
         self.get(name)
     }
+
+    pub async fn authenticated_storage(&self) -> Result<LmdbStorage> {
+        Ok(LmdbStorage::new(&self.dir.join("authenticated_storage.lmdb")).await?)
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -397,7 +402,7 @@ pub struct IdentityConfig {
 }
 
 impl IdentityConfig {
-    pub async fn new(identity: &Identity<Vault>) -> Self {
+    pub async fn new(identity: &Identity<Vault, LmdbStorage>) -> Self {
         let identifier = identity.identifier().clone();
         let change_history = identity.change_history().await;
         Self {
@@ -407,9 +412,17 @@ impl IdentityConfig {
         }
     }
 
-    pub async fn get(&self, ctx: &ockam::Context, vault: &Vault) -> Result<Identity<Vault>> {
+    pub async fn get(
+        &self,
+        ctx: &ockam::Context,
+        vault: &Vault,
+    ) -> Result<Identity<Vault, LmdbStorage>> {
         let data = self.change_history.export()?;
-        Ok(Identity::import(ctx, &data, vault).await?)
+        let storage = CliState::new()?.identities.authenticated_storage().await?;
+        Ok(
+            Identity::import_ext(ctx, &data, &storage, &SecureChannelRegistry::new(), vault)
+                .await?,
+        )
     }
 }
 
@@ -446,14 +459,14 @@ impl Display for EnrollmentStatus {
             writeln!(f, "Enrolled: no")?;
         }
 
-        match OffsetDateTime::from(self.created_at).format(&Iso8601::DEFAULT) {
-            Ok(time_str) => writeln!(f, "Timestamp: {}", time_str)?,
-            Err(err) => writeln!(
-                f,
-                "Error formatting OffsetDateTime as Iso8601 String: {}",
-                err
-            )?,
-        }
+        // match OffsetDateTime::from(self.created_at).format(&Iso8601::DEFAULT) {
+        //     Ok(time_str) => writeln!(f, "Timestamp: {}", time_str)?,
+        //     Err(err) => writeln!(
+        //         f,
+        //         "Error formatting OffsetDateTime as Iso8601 String: {}",
+        //         err
+        //     )?,
+        // }
 
         Ok(())
     }
@@ -646,10 +659,6 @@ impl NodeState {
         self.path.join("stderr.log")
     }
 
-    pub fn authenticated_storage_path(&self) -> PathBuf {
-        self.path.join("authenticated_storage.lmdb")
-    }
-
     pub fn policies_storage_path(&self) -> PathBuf {
         self.path.join("policies_storage.lmdb")
     }
@@ -716,7 +725,7 @@ impl NodeConfig {
         Ok(serde_json::from_str(&std::fs::read_to_string(path)?)?)
     }
 
-    pub async fn identity(&self, ctx: &ockam::Context) -> Result<Identity<Vault>> {
+    pub async fn identity(&self, ctx: &ockam::Context) -> Result<Identity<Vault, LmdbStorage>> {
         let vault = self.vault().await?;
         let path = std::fs::canonicalize(&self.default_identity)?;
         let config: IdentityConfig = serde_json::from_str(&std::fs::read_to_string(&path)?)?;
@@ -906,7 +915,10 @@ mod tests {
             let name = hex::encode(rand::random::<[u8; 4]>());
             let vault_config = sut.vaults.get(&vault_name).unwrap().config;
             let vault = vault_config.get().await.unwrap();
-            let identity = Identity::create(ctx, &vault).await.unwrap();
+            let identity =
+                Identity::create_ext(ctx, &sut.identities.authenticated_storage().await?, &vault)
+                    .await
+                    .unwrap();
             let config = IdentityConfig::new(&identity).await;
 
             let state = sut.identities.create(&name, config).unwrap();
@@ -942,6 +954,8 @@ mod tests {
             format!("vaults/data/{vault_name}-storage.json"),
             "identities".to_string(),
             format!("identities/{identity_name}.json"),
+            format!("identities/authenticated_storage.lmdb"),
+            format!("identities/authenticated_storage.lmdb-lock"),
             "nodes".to_string(),
             format!("nodes/{node_name}"),
             "defaults".to_string(),

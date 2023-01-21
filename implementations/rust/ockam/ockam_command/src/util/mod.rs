@@ -403,7 +403,6 @@ pub fn setup_logging(verbose: u8, no_color: bool) {
         "ockam_core",
         "ockam_command",
         "ockam_identity",
-        "ockam_channel",
         "ockam_transport_tcp",
         "ockam_vault",
         "ockam_vault_sync_core",
@@ -574,7 +573,12 @@ mod tests {
         let v = Vault::new(Some(Arc::new(v_storage)));
         cli_state.vaults.create(&v_name, v_config).await?;
 
-        let idt = Identity::create(ctx, &v).await?;
+        let idt = Identity::create_ext(
+            ctx,
+            &cli_state.identities.authenticated_storage().await?,
+            &v,
+        )
+        .await?;
         let idt_config = IdentityConfig::new(&idt).await;
         cli_state
             .identities

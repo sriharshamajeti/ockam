@@ -118,7 +118,12 @@ pub(super) async fn init_node_state(
     } else {
         let vault = vault_state.config.get().await?;
         let identity_name = hex::encode(random::<[u8; 4]>());
-        let identity = Identity::create(ctx, &vault).await?;
+        let identity = Identity::create_ext(
+            ctx,
+            &opts.state.identities.authenticated_storage().await?,
+            &vault,
+        )
+        .await?;
         let identity_config = cli_state::IdentityConfig::new(&identity).await;
         opts.state
             .identities

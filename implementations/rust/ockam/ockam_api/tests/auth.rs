@@ -24,12 +24,8 @@ async fn credential(ctx: &mut Context) -> Result<()> {
     // Create the authority:
     let authority = {
         let a = Identity::create(ctx, &Vault::create()).await?;
-        a.create_secure_channel_listener(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
-        .await?;
+        a.create_secure_channel_listener(&api_worker_addr, TrustEveryonePolicy)
+            .await?;
         let store = InMemoryStorage::new();
         let enrollers = tmpf.path().to_str().expect("path should be a string");
         let auth = direct::Server::new(
@@ -56,11 +52,7 @@ async fn credential(ctx: &mut Context) -> Result<()> {
 
     // Connect to the API channel from the enroller:
     let e2a = enroller
-        .create_secure_channel(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
+        .create_secure_channel(&api_worker_addr, TrustEveryonePolicy)
         .await?;
 
     // Add the member via the enroller's connection:
@@ -102,11 +94,7 @@ async fn credential(ctx: &mut Context) -> Result<()> {
 
     // Open a secure channel from member to authenticator:
     let m2a = member
-        .create_secure_channel(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
+        .create_secure_channel(&api_worker_addr, TrustEveryonePolicy)
         .await?;
 
     let mut c = direct::Client::new(route![m2a, &auth_worker_addr], ctx).await?;
@@ -137,12 +125,8 @@ async fn json_config(ctx: &mut Context) -> Result<()> {
     // Create the authority:
     let authority = {
         let a = Identity::create(ctx, &Vault::create()).await?;
-        a.create_secure_channel_listener(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
-        .await?;
+        a.create_secure_channel_listener(&api_worker_addr, TrustEveryonePolicy)
+            .await?;
         let store = InMemoryStorage::new();
         let auth = direct::Server::new(
             b"project42".to_vec(),
@@ -163,11 +147,7 @@ async fn json_config(ctx: &mut Context) -> Result<()> {
 
     // Connect to the API channel from the enroller:
     let e2a = enroller
-        .create_secure_channel(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
+        .create_secure_channel(&api_worker_addr, TrustEveryonePolicy)
         .await?;
 
     // Add the member via the enroller's connection:
@@ -208,11 +188,7 @@ async fn json_config(ctx: &mut Context) -> Result<()> {
 
     // Open a secure channel from member to authenticator:
     let m2a = member
-        .create_secure_channel(
-            &api_worker_addr,
-            TrustEveryonePolicy,
-            &InMemoryStorage::new(),
-        )
+        .create_secure_channel(&api_worker_addr, TrustEveryonePolicy)
         .await?;
 
     let mut c = direct::Client::new(route![m2a, &auth_worker_addr], ctx).await?;
@@ -252,7 +228,7 @@ async fn update_member_format(ctx: &mut Context) -> Result<()> {
         .await?;
     let authority = {
         let a = Identity::create(ctx, &Vault::create()).await?;
-        a.create_secure_channel_listener("api", TrustEveryonePolicy, &InMemoryStorage::new())
+        a.create_secure_channel_listener("api", TrustEveryonePolicy)
             .await?;
         let exported = a.export().await?;
         let enrollers = tmpf.path().to_str().expect("path should be a string");
@@ -267,7 +243,7 @@ async fn update_member_format(ctx: &mut Context) -> Result<()> {
 
     // Open a secure channel from member to authenticator:
     let m2a = member
-        .create_secure_channel("api", TrustEveryonePolicy, &InMemoryStorage::new())
+        .create_secure_channel("api", TrustEveryonePolicy)
         .await?;
 
     let mut c = direct::Client::new(route![m2a, "auth"], ctx).await?;
